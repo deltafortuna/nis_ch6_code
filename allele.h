@@ -7,6 +7,7 @@ private:
 	int position;
 	int birthgen;
 	int count;
+	int originating_population;
 
 public:
 	inline int get_count() { return count; }
@@ -17,9 +18,12 @@ public:
 	inline int get_birthgen() { return birthgen; }
 
 	// constructor
-	Allele (int pos, int gen): position(pos), birthgen(gen) {
+	Allele (int pos, int gen, int op): position(pos), birthgen(gen), originating_population(op) {
 		count = 0;
 	}
+
+
+
 };
 
 #endif

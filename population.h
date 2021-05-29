@@ -18,6 +18,9 @@ ofstream allele_file;
 ofstream sumstat_file; // all sumstats printed here
 double r_sequence;
 poisson_distribution<int> randomrec;
+int popn;
+bool extant;
+ofstream abf;
 
 vector<vector<int> > mutate(const vector<int> &parents, const int &gen) {
 	vector<vector<int> > mutation_results;
@@ -38,7 +41,9 @@ vector<vector<int> > mutate(const vector<int> &parents, const int &gen) {
 		for (int j = 0; j < mutnum[i]; ++j)  { // loop not entered if no mutation (i.e., mutnum[i] == 0)
 			int position = randompos(e);
 			if (alleles.find(position) == alleles.end()) { // new mutation to a derived allele in the population
-				alleles.insert({position, new Allele(position, gen)});
+				alleles.insert({position, new Allele(position, gen, popn)});
+				if (trackAlleleBirths)  // new statement
+					abf << "nt" << position << "\t" << gen << "\t" << popn << endl;
 				mutation_results[i].push_back(position);
 			} else { // mutation present in POPULATION; determine if derived allele found in the considered sequence
 				vector<int> seq = (*(individuals[parents[i]])).get_sequence(mutation_results[i+2][0]);
@@ -81,7 +86,7 @@ void update_alleles(const int &gen) {
 			int birthgen = (*(iter->second)).get_birthgen();
 			allele_file << iter->first << " " << birthgen << " " << gen - birthgen << " 0" << endl;
 		}
-		if (current_count == pop_schedule[gen]*2) {  //replaces popsize*2 in ch_3 lisint
+		if (current_count == pop_schedule[popn][gen]*2) {  //replaces popsize*2 in ch_3 lisint
 			to_remove.push_back(iter->first);
 			int birthgen = (*(iter->second)).get_birthgen();
 			for (auto iter2 = individuals.begin(); iter2 != individuals.end(); ++iter2)
@@ -98,24 +103,57 @@ void update_alleles(const int &gen) {
 }
 
 void get_sample(int gen) {
+	ofstream sequencefile;  //only used if gen % printhapfreq == 0
+	string ofname = "deme" + to_string(popn) + "_" + to_string(gen);
+	bool printhap = false;
+	if (gen % printhapfreq == 0) printhap = true;
+	if (printhap) sequencefile.open(ofname.c_str());
 	vector<bitset<bitlength>> sample;
-	map<int, int> allele_counts; // note that a map is always sorted by keys
+	map<int, int> allele_counts;
 	int count = 0;
+	int additional = sampsize;
+	if (diploid_sample)
+		additional /= 2;
+
 	for (auto iter = individuals.begin(); iter != individuals.begin()+sampsize; ++iter) { // determines which alleles are present in sample
 		vector<int> haplotype = (**iter).get_sequence(0);
 		for (auto iter2 = haplotype.begin(); iter2 != haplotype.end(); ++iter2)
 			++allele_counts[*iter2];
+		if (diploid_sample) {
+			vector<int> haplotype = (**iter).get_sequence(1);
+			for (auto iter2 = haplotype.begin(); iter2 != haplotype.end(); ++iter2)
+				++allele_counts[*iter2];
+		}
 	}
+
+	if (printhap) { // print column headers
+		for (auto iter = positions.begin(); iter != positions.end(); ++iter)
+			sequencefile << "nt" << to_string(*iter) << " ";
+		sequencefile << endl;
+		for (auto iter = positions.begin(); iter != positions.end(); ++iter)
+			sequencefile << (alleles[*iter]) -> get_originating_population() << " ";
+		sequencefile << endl;
+		for (auto iter = positions.begin(); iter != positions.end(); ++iter)
+			sequencefile << (alleles[*iter]) -> get_birthgen() << " ";
+		sequencefile << endl;
+	}
+
 	for (auto iter = individuals.begin(); iter != individuals.begin()+sampsize; ++iter) {  // creates haplotypes for each sequence in the sample and populates bitset
-		vector<int> haplotype = (**iter).get_sequence(0);
-		sort(haplotype.begin(), haplotype.end());
-		string hap;
-		for (auto iter = allele_counts.begin(); iter != allele_counts.end(); ++iter)
-			if ( binary_search (haplotype.begin(), haplotype.end(), iter->first))
-				hap += "1";
-			else
-				hap += "0";
-		sample.push_back(bitset<bitlength> (hap));
+		for (int h=0; h<diploid_sample+1; ++h) {
+			vector<int> haplotype = (**iter).get_sequence(h);
+			sort(haplotype.begin(), haplotype.end());
+			string hap;
+			for (auto iter = allele_counts.begin(); iter != allele_counts.end(); ++iter)
+				if ( binary_search (haplotype.begin(), haplotype.end(), iter->first)) {
+					hap += "1";
+					if (printhap) sequencefile << "1 ";
+				} else {
+					hap += "0";
+					if (printhap) sequencefile << "0 ";
+				}
+			sample.push_back(bitset<bitlength> (hap));
+			if (printhap) sequencefile << endl;
+		}
 	}
 
 	vector<int> positions;
@@ -138,6 +176,8 @@ void get_sample(int gen) {
 		double tajimasd = get_tajimas_d(pi, watterson, S);
 		sumstat_file << gen << " " << pi << " " << watterson << " " << tajimasd << endl;
 	}
+
+	if (printhap) sequencefile.close();
 }
 
 vector<int> recombine() {
@@ -165,8 +205,20 @@ vector<int> recombine() {
 public:
 void reproduce(int gen) {
 
-	randomind.param(uniform_int_distribution<int>::param_type(0,pop_schedule[gen]-1));
-	for (int i=0; i< pop_schedule[gen==0 ? gen : gen-1]; ++i) { // replaces ch3 line
+	randomind.param(uniform_int_distribution<int>::param_type(0,pop_schedule[popn][gen]-1));
+	int N = pop_schedule[popn][gen]; // N is number of individuals to produce
+	if (modelMigration) {
+		int n_imm = 0;
+		int n_emi = 0;
+		for (int i=0; i<pop_num; ++i) {
+			n_emi += mig[popn][i] * pop_schedule[i][gen];
+			n_imm += mig[i][popn] * N;
+		}
+		N += n_emi;
+		N -= n_imm;
+	}
+
+	for (int i=0; i< N; ++i) { // replaces ch3 line
 		vector<int> parents;
 		parents.push_back(randomind(e));
 		parents.push_back(randomind(e));
@@ -176,10 +228,10 @@ void reproduce(int gen) {
 	}
 
 	// delete dynamically allocated individuasl of the last generation
-	for (auto iter = individuals.begin(); iter != individuals.end() - pop_schedule[gen==0 ? gen : gen-1]; ++iter) // replaces ch3 line
+	for (auto iter = individuals.begin(); iter != individuals.end() - N; ++iter) // replaces ch3 line
 		delete *iter;
 	// remove orphaned pointers from individuals
-	individuals.erase(individuals.begin(), individuals.end()- pop_schedule[gen==0 ? gen : gen-1]); // replaces ch3 line
+	individuals.erase(individuals.begin(), individuals.end()- N); // replaces ch3 line
 
 	// update allele counts on sample generations
 	if (gen % sampfreq == 0 )
@@ -191,16 +243,53 @@ void reproduce(int gen) {
 	}
 }
 
+void remove_emigrants(int Nm) {
+	for (auto iter = individuals.begin(); iter != individuals.begin() + Nm; ++iter)
+		delete *iter;
+	individuals.erase(individuals.begin(), individuals.begin()+Nm);
+}
+
+void sample(int gen) {
+	update_alleles(gen);
+	random_shuffle(individuals.begin(), individuals.end() ) ;
+	get_sample(gen + 1);
+}
+
 void close_output_files () {
 	allele_file.close();
 	sumstat_file.close();
+	if (trackAlleleBirths) abf.close();
 }
+
+vector<int> set_extant() {
+	extant = 1;
+	vector<int> i;
+	if (splitgenesis[popn][0] > 0) {
+		i.push_back(1);
+		i.push_back(splitgenesis[popn][1]); // source population
+		i.push_back(splitgenesis[popn][2]); // percent
+	} else if (mergegenesis[popn][0] > 0 ) {
+		i.push_back(2);
+		i.push_back(mergegenesis[popn][1]); // first source population
+		i.push_back(mergegenesis[popn][2]); // second source population
+	} else
+		i.push_back(0);
+	return(i);
+}
+
+inline int get_popnum() { return popn;}
+inline bool get_extant() {return extant;}
+inline void set_extant() {extant = 1;}
+inline void set_extinction() {extant = 0;}
+inline vector<vector<int>> get_sequences(int indnum) { return (*individuals[indnum]).get_sequences();}
+inline void add_immigrant(vector<vector<int>> ses) {individuals.push_back( new Individual(ses) ); }
+inline int get_current_popsize(int gen) {return pop_schedule[popn][gen];}
 
 Population () {
 	// initialize random number distributions
 	mu_sequence = seqlength * mutrate;
 	randompos.param(uniform_int_distribution<int>::param_type(1,seqlength));
-	randomind.param(uniform_int_distribution<int>::param_type(0,pop_schedule[0] - 1)); // replaces ch3 line
+	randomind.param(uniform_int_distribution<int>::param_type(0,pop_schedule[popn][0] - 1)); // replaces ch3 line
 	randomnum.param(uniform_real_distribution<double>::param_type(0.,1.));
  	randommut.param(poisson_distribution<int>::param_type(mu_sequence));
 
@@ -215,9 +304,9 @@ Population () {
 		randomrec.param(poisson_distribution<int>::param_type(r_sequence));
 	}
 
-	if (useMS) { // start population with MS generated variation
+	if (useMS[popn]) { // start population with MS generated variation
 		cout << "using MS to initialize population ..." << endl;
-		system(mscommand.c_str());
+		system(mscommand[popn].c_str());
 		ifstream ms_output("ms_output");
 		string ms_line;
 		regex query("positions");
@@ -234,7 +323,7 @@ Population () {
 									// and create new allele at that position
 					int position = seqlength * atof(s.c_str());
 					allele_positions.push_back(position);
-					alleles.insert( { position  , new Allele(position,-1) } );
+					alleles.insert( { position  , new Allele(position,-1,popn) } );
 				}
 				continue;
 			}
@@ -253,12 +342,16 @@ Population () {
 			}
 		}
 	} else {
-		for (int i=0; i<pop_schedule[0]; ++i) { // replaces ch3 line
+		for (int i=0; i<pop_schedule[popn][0]; ++i) { // replaces ch3 line
 			vector<int> s1; vector<int> s2;
 			vector<vector<int>> ses{s1,s2};
 			individuals.push_back(  new Individual(ses)  );
 		}
 	}
+
+	string ofname = "deme" + to_string(popn) + "_allele_births_rep" + reppy;  // temp definitely post8 for CONDOR
+	if (trackAlleleBirths)
+		abf.open(ofname.c_str());
 
 	string fname = "allele_info";
 	allele_file.open(fname.c_str());

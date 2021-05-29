@@ -27,5 +27,8 @@ extern int hotrecStop;
 extern bool getWindowStats;
 extern int windowSize;
 extern int windowStep;
+extern int printhapfreq;
+extern int diploid_sample;
+extern bool trackAlleleBirths; 
 
 #endif

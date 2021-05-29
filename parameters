@@ -13,6 +13,9 @@ windowSize 10000
 windowStep 5000
 pop_num 2
 migration_rates 0. 0.00001 0.00001 0.
+printhapfreq 5000
+diploid_sample 1
+trackAlleleBirths 1
 runlength 5000
 DEME    /// 0
 popsize  10000

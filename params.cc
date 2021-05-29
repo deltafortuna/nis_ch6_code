@@ -1,23 +1,32 @@
 #include "params.h"  // access to declarations of global parameter values
 
-map<string, string> read_parameters_file(const string &parameters_fn)
+map<int, map<string, string> > read_parameters_file(const string &parameters_fn)
 {
-	//map<int, map<string, string> > params_by_block;
+	map<int, map<string, string> > params_by_block;
 	map<string,string> params;
 	ifstream paramfile(parameters_fn.c_str());
 	string line;
+	int block = -1;
+	regex query("DEME");
 	while(getline(paramfile, line)) {
-		istringstream iss(line.c_str());
+		istringstream iss(line); // does it need to be line.c_str()?????????
 		string key, nextone, value;
 		iss >> key;
-		while (iss >> nextone)
-			value += nextone + " ";
-		params[key] = value;
+		if (regex_search(key, query)) {  // check if entering next deme block
+			params_by_block[block] = params;
+			params.clear();
+			++block;
+		} else {
+			while (iss >> nextone)
+				value += nextone + " ";
+			params[key] = value;
+		}
 	}
-	return params;
+	params_by_block[block] = params; // assign values for final deme
+	return  params_by_block;
 }
 
-map<string, string> parameters = read_parameters_file("parameters"); // change name if parameters file not named parameters
+map<int, map>string, string> > p = read_parameters_file("parameters"); // change name if parameters file not named parameters
 
 vector<int> get_multi_int_param(const string &key)
 {
@@ -73,41 +82,60 @@ vector<int> create_pop_schedule()
 }
 
 // variable names
-int popsize, sampsize, seqlength, sampfreq, hotrecStart, hotrecStop, windowSize, windowStep;
+int popsize, sampsize, seqlength, sampfreq, hotrecStart, hotrecStop, windowSize, windowStep, pop_num, runlength;
 double mutrate, recrate, hotrecrate;
-bool useMS, useRec, useHotRec, getWindowStats;
-string mscommand;
+bool useRec, useHotRec, getWindowStats;
 vector<int> demography;
 vector<double> dem_parameter;
 vector<int> dem_start_gen;
 vector<int> dem_end_gen;
 vector<int> carrying_cap;
+vector<double> m;
+vector<string> mscommand;
+vector<bool> useMS;
+vector<int> birthgen, extinctgen;
+map<int, vector<int> > pop_schedule;
 
-int process_parameters() {
-	popsize = atoi(parameters["popsize"].c_str());
-  mutrate = atof(parameters["mutrate"].c_str());
-	sampsize = atoi(parameters["sampsize"].c_str());
-	seqlength = atof(parameters["seqlength"].c_str()); // covernsion using atof() enables use of e notation in parameters file
-	sampfreq = atoi(parameters["sampfreq"].c_str());
-  useMS = atoi(parameters["useMS"].c_str());
-  mscommand = parameters["mscommand"];
-	demography = get_multi_int_param("demography");
-	dem_parameter = get_multi_double_param("dem_parameter");
-	dem_start_gen = get_multi_int_param("dem_start_gen");
-	dem_end_gen = get_multi_int_param("dem_end_gen");
-	carrying_cap = get_multi_int_param("carrying_cap");
-	recrate = atof(parameters["recrate"].c_str());
-	hotrecrate = atof(parameters["hotrecrate"].c_str());
-	hotrecStart = atoi(parameters["hotrecStart"].c_str());
-	hotrecStop = atoi(parameters["hotrecStop"].c_str());
-	windowSize = atoi(parameters["windowSize"].c_str());
-	windowStep = atoi(parameters["windowStep"].c_str());
-	useRec = atoi(parameters["useRec"].c_str());
-	useHotRec = atoi(parameters["useHotRec"].c_str());
-	getWindowStats = atoi(parameters["getWindowStats"].c_str());
+int process_parameters() { // replaces old version of function
+	for (auto iter = p.begin(); iter!=p.end(); ++iter ) {
+		map<string, string> parameters = iter->second;
+		if (iter->first == -1) {  // block of global parameters
+			mutrate = atof(parameters["mutrate"].c_str());
+			recrate = atof(parameters["recrate"].c_str());
+			hotrecrate = atof(parameters["hotrecrate"].c_str());
+			useRec = atoi(parameters["useRec"].c_str());
+			useHotRec = atoi(parameters["useHotRec"].c_str());
+			hotrecStart = atoi(parameters["hotrecStart"].c_str());
+			hotrecStop = atoi(parameters["hotrecStop"].c_str());
+			sampsize = atoi(parameters["sampsize"].c_str());
+			seqlength = atof(parameters["seqlength"].c_str()); // covernsion using atof() enables use of e notation in parameters file
+			sampfreq = atoi(parameters["sampfreq"].c_str());
+			getWindowStats = atoi(parameters["getWindowStats"].c_str());
+			windowSize = atoi(parameters["windowSize"].c_str());
+			windowStep = atoi(parameters["windowStep"].c_str());
+			pop_num = atoi(parameters["pop_num"].c_str());
+			runlength = atoi(parameters["runlength"].c_str());
+			m = get_multi_double_param("migration_rates", parameters);
+			printhapfreq = atoi(parameters["printhapfreq"].c_str());
+			diploid_sample = atoi(parameters["diploid_sample"].c_str());
+			trackAlleleBirths = atoi(parameters["trackAlleleBirths"].c_str());
+		} else {   // block of deme parameters
+			popsize = atoi(parameters["popsize"].c_str());
+			demography =  get_multi_int_param("demography", parameters);
+			dem_parameter = get_multi_double_param("dem_parameter", parameters);
+			dem_start_gen =  get_multi_int_param("dem_start_gen", parameters);
+			dem_end_gen = get_multi_int_param("dem_end_gen", parameters);
+			carrying_cap = get_multi_int_param("carrying_cap", parameters);
+			birthgen.push_back( atoi(parameters["birthgen"].c_str()) );
+			extinctgen.push_back( atoi(parameters["extinctgen"].c_str()) );
+			useMS.push_back( atoi(parameters["useMS"].c_str()) );
+			mscommand.push_back( parameters["mscommand"] );
+			pop_schedule[iter->first] = create_pop_schedule();
+		}
+	}
 	return 1;
 }
 
 int good_parameters = process_parameters();
-
-vector<int> pop_schedule = create_pop_schedule();
+double* a = &m[0]; // matrix takes array argument
+Matrix<double> mig(pop_num, pop_num, a);
