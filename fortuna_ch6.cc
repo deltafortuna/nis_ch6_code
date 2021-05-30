@@ -13,6 +13,7 @@
 
 using namespace std;
 
+#include "matrix.h"
 #include "params.h"
 #include "params.cc" // inclusion causes parameter values to be read
 #include "allele.h"
@@ -23,9 +24,8 @@ using namespace std;
 int main(int argc, char *argv[]) {
 	mt19937 engine(time(0));  //initialize the random engine
 	Population::e  = engine;
-	mt19937 engine2(time(0));
+	mt19937 engine2(time(0) * 2);
 	Metapopulation::f = engine2;
-	Population pop;
 
 	cout << popsize << " is popsize" << endl;
 	cout << "MIGRATION matrix:" << endl;

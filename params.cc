@@ -26,9 +26,9 @@ map<int, map<string, string> > read_parameters_file(const string &parameters_fn)
 	return  params_by_block;
 }
 
-map<int, map>string, string> > p = read_parameters_file("parameters"); // change name if parameters file not named parameters
+map<int, map<string, string> > p = read_parameters_file("parameters"); // change name if parameters file not named parameters
 
-vector<int> get_multi_int_param(const string &key)
+vector<int> get_multi_int_param(const string &key, map<string, string> &parameters)
 {
 	vector<int> vec;
 	istringstream iss(parameters[key].c_str());
@@ -38,7 +38,7 @@ vector<int> get_multi_int_param(const string &key)
 	return vec;
 }
 
-vector<double> get_multi_double_param(const string &key)
+vector<double> get_multi_double_param(const string &key, map<string, string> &parameters)
 {
 	vector<double> vec;
 	istringstream iss(parameters[key].c_str());
@@ -82,9 +82,9 @@ vector<int> create_pop_schedule()
 }
 
 // variable names
-int popsize, sampsize, seqlength, sampfreq, hotrecStart, hotrecStop, windowSize, windowStep, pop_num, runlength;
+int popsize, sampsize, seqlength, sampfreq, hotrecStart, hotrecStop, windowSize, windowStep, pop_num, runlength, printhapfreq, diploid_sample;
 double mutrate, recrate, hotrecrate;
-bool useRec, useHotRec, getWindowStats;
+bool useRec, useHotRec, getWindowStats, modelMigration, trackAlleleBirths; 
 vector<int> demography;
 vector<double> dem_parameter;
 vector<int> dem_start_gen;
@@ -94,7 +94,7 @@ vector<double> m;
 vector<string> mscommand;
 vector<bool> useMS;
 vector<int> birthgen, extinctgen;
-map<int, vector<int> > pop_schedule;
+map<int, vector<int> > pop_schedule, splitgenesis, mergegenesis;
 
 int process_parameters() { // replaces old version of function
 	for (auto iter = p.begin(); iter!=p.end(); ++iter ) {
@@ -119,6 +119,7 @@ int process_parameters() { // replaces old version of function
 			printhapfreq = atoi(parameters["printhapfreq"].c_str());
 			diploid_sample = atoi(parameters["diploid_sample"].c_str());
 			trackAlleleBirths = atoi(parameters["trackAlleleBirths"].c_str());
+			modelMigration = atoi(parameters["modelMigration"].c_str());
 		} else {   // block of deme parameters
 			popsize = atoi(parameters["popsize"].c_str());
 			demography =  get_multi_int_param("demography", parameters);
@@ -131,6 +132,8 @@ int process_parameters() { // replaces old version of function
 			useMS.push_back( atoi(parameters["useMS"].c_str()) );
 			mscommand.push_back( parameters["mscommand"] );
 			pop_schedule[iter->first] = create_pop_schedule();
+			splitgenesis[iter->first] = get_multi_int_param("splitgenesis", parameters);
+			mergegenesis[iter->first] = get_multi_int_param("mergegenesis", parameters);
 		}
 	}
 	return 1;

@@ -12,6 +12,7 @@ getWindowStats 1
 windowSize 10000
 windowStep 5000
 pop_num 2
+modelMigration 1
 migration_rates 0. 0.00001 0.00001 0.
 printhapfreq 5000
 diploid_sample 1
@@ -28,6 +29,8 @@ dem_end_gen 100000
 carrying_cap 0 0 0
 useMS 1
 mscommand ./ms 20000 1 -t 80 >ms_output
+splitgenesis 0 0 0
+mergegenesis 0 0 0
 DEME    /// 1
 popsize  10000
 demography 0
@@ -39,3 +42,5 @@ dem_end_gen 100000
 carrying_cap 0 0 0
 useMS 1
 mscommand ./ms 20000 1 -t 80 >ms_output
+splitgenesis 1 0 40
+mergegenesis 0 0 0

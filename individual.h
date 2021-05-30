@@ -48,6 +48,8 @@ private:
 
 public:
 	inline vector<int> get_sequence(int whichseq) { return sequences[whichseq]; }
+	inline vector<vector<int> > get_sequences() { return sequences; }
+
 	void remove_fixed_allele(int to_remove) {
 		for (int i = 0; i<2; ++i) {
 			vector<int>::iterator p = find(sequences[i].begin(), sequences[i].end(), to_remove);

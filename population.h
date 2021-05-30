@@ -126,6 +126,10 @@ void get_sample(int gen) {
 		}
 	}
 
+	vector<int> positions;
+	for (auto iter = allele_counts.begin(); iter != allele_counts.end(); ++iter)
+		positions.push_back(iter->first);
+
 	if (printhap) { // print column headers
 		for (auto iter = positions.begin(); iter != positions.end(); ++iter)
 			sequencefile << "nt" << to_string(*iter) << " ";
@@ -156,9 +160,6 @@ void get_sample(int gen) {
 		}
 	}
 
-	vector<int> positions;
-	for (auto iter = allele_counts.begin(); iter != allele_counts.end(); ++iter)
-		positions.push_back(iter->first);
 	int S = allele_counts.size();
 
 	if (getWindowStats) {
@@ -249,6 +250,24 @@ void remove_emigrants(int Nm) {
 	individuals.erase(individuals.begin(), individuals.begin()+Nm);
 }
 
+vector<int> get_allele_positions() {
+	vector<int> v;
+	for (auto iter=alleles.begin(); iter!=alleles.end(); ++iter)
+		v.push_back(iter->first);
+	return v;
+}
+
+vector<int> get_allele_info(int s) {
+	vector<int> v = {s};
+	v.push_back( (*alleles[s]).get_birthgen() );
+	v.push_back( (*alleles[s]).get_originating_population() );
+	return v;
+}
+
+void insert_new_allele(vector<int> v) {
+	alleles.insert( { v[0]  , new Allele( v[0], v[1], v[2] ) } );
+}
+
 void sample(int gen) {
 	update_alleles(gen);
 	random_shuffle(individuals.begin(), individuals.end() ) ;
@@ -279,13 +298,12 @@ vector<int> set_extant() {
 
 inline int get_popnum() { return popn;}
 inline bool get_extant() {return extant;}
-inline void set_extant() {extant = 1;}
-inline void set_extinction() {extant = 0;}
+inline void set_extinct() {extant = 0;}
 inline vector<vector<int>> get_sequences(int indnum) { return (*individuals[indnum]).get_sequences();}
 inline void add_immigrant(vector<vector<int>> ses) {individuals.push_back( new Individual(ses) ); }
 inline int get_current_popsize(int gen) {return pop_schedule[popn][gen];}
 
-Population () {
+Population (int popnum, int eextant):popn(popnum), extant(eextant) { // added parameters to constructor
 	// initialize random number distributions
 	mu_sequence = seqlength * mutrate;
 	randompos.param(uniform_int_distribution<int>::param_type(1,seqlength));
@@ -349,7 +367,7 @@ Population () {
 		}
 	}
 
-	string ofname = "deme" + to_string(popn) + "_allele_births_rep" + reppy;  // temp definitely post8 for CONDOR
+	string ofname = "deme" + to_string(popn) + "_allele_births";
 	if (trackAlleleBirths)
 		abf.open(ofname.c_str());
 

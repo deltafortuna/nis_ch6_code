@@ -16,6 +16,7 @@ public:
 	inline void set_position(int pposition) { position = pposition; cout << pposition << ": " << position << endl; }
 	inline void increment_count() { ++count; }
 	inline int get_birthgen() { return birthgen; }
+	inline int get_originating_population() { return originating_population; }
 
 	// constructor
 	Allele (int pos, int gen, int op): position(pos), birthgen(gen), originating_population(op) {

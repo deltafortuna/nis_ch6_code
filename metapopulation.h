@@ -1,3 +1,4 @@
+#ifndef METAPOPULATION_H   
 #define METAPOPULATION_H
 
 class Metapopulation {
